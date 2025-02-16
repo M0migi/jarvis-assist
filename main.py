@@ -1,36 +1,34 @@
 from flask import Flask, request, jsonify
-import random
-import textblob
+import openai
+import os
 
 app = Flask(__name__)
+
+# OpenAI APIキー（環境変数から取得する方法）
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 @app.route("/")
 def home():
     return "JARVIS is online."
 
-@app.route("/decision", methods=["GET"])
-def decision_assist():
-    options = request.args.get("options", "").split(",")
-    if not options or options == [""]:
-        return "選択肢がありません。"
+@app.route("/chat", methods=["POST"])
+def chat():
+    user_input = request.json.get("message")
+    
+    if not user_input:
+        return jsonify({"error": "メッセージを入力してください"}), 400
 
-    choice = random.choice(options)
-    return f"おすすめは「{choice}」です。"
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",  # 使いたいモデルを選択
+            messages=[{"role": "system", "content": "あなたはJARVISというAIアシスタントです。"}] +
+                     [{"role": "user", "content": user_input}]
+        )
+        reply = response["choices"][0]["message"]["content"]
+        return jsonify({"reply": reply})
 
-@app.route("/emotion", methods=["POST"])
-def emotion_analysis():
-    data = request.json
-    text = data.get("text", "")
-
-    analysis = textblob.TextBlob(text)
-    sentiment = analysis.sentiment.polarity
-
-    if sentiment > 0:
-        return jsonify({"emotion": "ポジティブ", "message": "いいですね！"})
-    elif sentiment < 0:
-        return jsonify({"emotion": "ネガティブ", "message": "大丈夫ですか？"})
-    else:
-        return jsonify({"emotion": "ニュートラル", "message": "特に問題なさそうです。"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8080)
+    app.run(host="0.0.0.0", port=10000)
